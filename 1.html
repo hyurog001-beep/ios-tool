@@ -2,11 +2,6 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-<!-- This site is hosted on Netlify. Anyone can build and deploy a site
-     like this one for free: https://netlify.new/?utm_campaign=ai-legible&utm_source=comment&utm_medium=referral&utm_id=a573614a-d477-440a-8e13-b66e031c4ab7
-     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
-<meta name="hosting-provider" content="Netlify">
-<meta name="netlify-deploy" content="https://netlify.new/?utm_campaign=ai-legible&amp;utm_source=meta&amp;utm_medium=referral&amp;utm_id=a573614a-d477-440a-8e13-b66e031c4ab7">
   <title>网页记事本</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -342,6 +337,16 @@
       } catch (e) {
         editor.innerHTML = '<div class="editor-line">欢迎使用网页记事本</div>';
       }
+
+      // 确保至少有一行合法的容器
+      if (!editor.querySelector('.editor-line')) {
+        const defaultLine = document.createElement('div');
+        defaultLine.className = 'editor-line';
+        defaultLine.innerHTML = editor.innerHTML.trim() ? editor.innerHTML : '<br>';
+        editor.innerHTML = '';
+        editor.appendChild(defaultLine);
+      }
+
       updateOutline();
       updateAllElapsedTimes();
     }
@@ -380,26 +385,33 @@
       URL.revokeObjectURL(url);
     }
 
-function getCurrentLineElement() {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return null;
+    // 精准获取当前行元素
+    function getCurrentLineElement() {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return null;
 
-  let node = selection.anchorNode;
-  if (!node) return null;
+      let node = selection.anchorNode;
+      if (!node) return null;
 
-  // 如果选中的是文本节点，先转为其父元素
-  if (node.nodeType === Node.TEXT_NODE) {
-    node = node.parentElement;
-  }
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentElement;
+      }
 
-  // 关键：向上一直寻找，直到找到带有 class="editor-line" 的行元素，或者到了 #editor 停止
-  while (node && node !== editor && !node.classList?.contains('editor-line')) {
-    node = node.parentElement;
-  }
+      // 向上寻找到 .editor-line
+      while (node && node !== editor) {
+        if (node.classList && node.classList.contains('editor-line')) {
+          return node;
+        }
+        node = node.parentElement;
+      }
 
-  // 确保最终找到的是编辑器内部的行元素
-  return (node && node.classList?.contains('editor-line')) ? node : null;
-}
+      // 如果未找到任何行且编辑器有子行，默认返回首行
+      if (editor.querySelector('.editor-line')) {
+        return editor.querySelector('.editor-line');
+      }
+
+      return null;
+    }
 
     function createLine(text = '') {
       const line = document.createElement('div');
@@ -442,10 +454,10 @@ function getCurrentLineElement() {
       }
     }
 
-    // 计算逻辑：使用优雅清晰的 [ 结果 ] 方括号包裹
+    // 计算逻辑
     function handleF4Calculation() {
       const selection = window.getSelection();
-      if (!selection.rangeCount) return false;
+      if (!selection || !selection.rangeCount) return false;
       const range = selection.getRangeAt(0);
 
       // 1. 选中文本直接算
@@ -471,7 +483,7 @@ function getCurrentLineElement() {
 
       // 2. 光标前算式计算
       const node = range.startContainer;
-      if (node.nodeType === Node.TEXT_NODE) {
+      if (node && node.nodeType === Node.TEXT_NODE) {
         const textBeforeCursor = node.textContent.slice(0, range.startOffset);
         const match = textBeforeCursor.match(/([0-9+\-*/().\s×÷＋－,]+)[=＝]?$/);
 
@@ -557,7 +569,7 @@ function getCurrentLineElement() {
       highlightCurrentHeading();
     }
 
-    // Scrollspy: 右侧滚动时高亮大纲当前位置
+    // Scrollspy: 右侧滚动高亮
     function highlightCurrentHeading() {
       const headings = editor.querySelectorAll('.editor-line.title-h1, .editor-line.title-h2, .editor-line.title-h3');
       const outlineItems = outlineList.querySelectorAll('.outline-item');
@@ -617,7 +629,7 @@ function getCurrentLineElement() {
 
     function insertTimeTracker() {
       const selection = window.getSelection();
-      if (!selection.rangeCount) return;
+      if (!selection || !selection.rangeCount) return;
       const range = selection.getRangeAt(0);
 
       const now = new Date();
@@ -699,12 +711,12 @@ function getCurrentLineElement() {
       saveToStorage();
     });
 
-    // 键盘操作监听
+    // 键盘快捷键响应
     editor.addEventListener('keydown', function(e) {
       if (e.key === 'Tab') {
         e.preventDefault();
         const selection = window.getSelection();
-        if (!selection.rangeCount) return;
+        if (!selection || !selection.rangeCount) return;
         const range = selection.getRangeAt(0);
         
         const tabNode = document.createTextNode('    ');
@@ -747,7 +759,7 @@ function getCurrentLineElement() {
         if (!currentLine) return;
 
         const selection = window.getSelection();
-        if (!selection.rangeCount) return;
+        if (!selection || !selection.rangeCount) return;
         const range = selection.getRangeAt(0);
 
         const checkRange = document.createRange();
@@ -802,20 +814,21 @@ function getCurrentLineElement() {
         return;
       }
 
+      // F1 - F3 标题样式切换
       if (e.key === 'F1' || e.key === 'F2' || e.key === 'F3') {
         e.preventDefault();
         const line = getCurrentLineElement();
-        if (!line) return;
+        if (!line || !line.classList) return;
 
         if (e.key === 'F1') {
-          line.classList?.remove('title-h2', 'title-h3');
-          line.classList?.toggle('title-h1');
+          line.classList.remove('title-h2', 'title-h3');
+          line.classList.toggle('title-h1');
         } else if (e.key === 'F2') {
-          line.classList?.remove('title-h1', 'title-h3');
-          line.classList?.toggle('title-h2');
+          line.classList.remove('title-h1', 'title-h3');
+          line.classList.toggle('title-h2');
         } else if (e.key === 'F3') {
-          line.classList?.remove('title-h1', 'title-h2');
-          line.classList?.toggle('title-h3');
+          line.classList.remove('title-h1', 'title-h2');
+          line.classList.toggle('title-h3');
         }
 
         updateOutline();
@@ -841,21 +854,21 @@ function getCurrentLineElement() {
       }, 300);
     });
 
-    // 侧栏左右自由拖拽核心逻辑
+    // 侧栏拖拽调整宽度
     let isResizing = false;
 
     resizer.addEventListener('mousedown', function(e) {
       isResizing = true;
       resizer.classList.add('resizing');
       document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none'; // 拖拽时避免误选文本
+      document.body.style.userSelect = 'none';
     });
 
     window.addEventListener('mousemove', function(e) {
       if (!isResizing) return;
       let newWidth = e.clientX;
-      if (newWidth < 180) newWidth = 180; // 最小宽度
-      if (newWidth > 500) newWidth = 500; // 最大宽度
+      if (newWidth < 180) newWidth = 180;
+      if (newWidth > 500) newWidth = 500;
       sidebar.style.width = newWidth + 'px';
     });
 
@@ -869,8 +882,8 @@ function getCurrentLineElement() {
       }
     });
 
+    // 页面加载启动
     loadFromStorage();
   </script>
 </body>
-</html><script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="a573614a-d477-440a-8e13-b66e031c4ab7" data-app-host="app.netlify.com"></script>
-<script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="1eed3390-8ead-4793-986a-4832b35da1db" data-app-host="app.netlify.com"></script>
+</html>
