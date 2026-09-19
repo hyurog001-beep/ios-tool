@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free: https://netlify.new/?utm_campaign=ai-legible&utm_source=comment&utm_medium=referral&utm_id=1eed3390-8ead-4793-986a-4832b35da1db
+     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+<meta name="hosting-provider" content="Netlify">
+<meta name="netlify-deploy" content="https://netlify.new/?utm_campaign=ai-legible&amp;utm_source=meta&amp;utm_medium=referral&amp;utm_id=1eed3390-8ead-4793-986a-4832b35da1db">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金额组合计算工具</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: #f2f2f7;
+            color: #1c1c1e;
+            min-height: 100vh;
+            padding: 36px 20px 60px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        /* 自定义 iOS 细滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        /* 主容器：iOS 悬浮纯白卡片 */
+        .container {
+            width: 100%;
+            max-width: 760px;
+            background: #ffffff;
+            padding: 36px 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+            border: 1px solid rgba(60, 60, 67, 0.06);
+        }
+
+        /* 顶部标题栏 */
+        h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1c1c1e;
+            letter-spacing: -0.015em;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #8e8e93;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 8px;
+            padding-left: 2px;
+        }
+
+        /* iOS 风格输入框 */
+        input[type="number"] {
+            width: 100%;
+            padding: 10px 14px;
+            background-color: #f2f2f7;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            font-size: 14px;
+            color: #1c1c1e;
+            outline: none;
+            transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        input[type="number"]:focus {
+            background-color: #ffffff;
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+        }
+
+        input[type="number"]::placeholder {
+            color: #aeaeb2;
+            font-size: 13px;
+        }
+
+        .tip {
+            font-size: 12px;
+            color: #8e8e93;
+            line-height: 1.5;
+            background: rgba(120, 120, 128, 0.08);
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+
+        .tip strong {
+            color: #007aff;
+        }
+
+        /* 表格排版 */
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(60, 60, 67, 0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: center;
+            border-bottom: 1px solid rgba(60, 60, 67, 0.06);
+            font-size: 13px;
+        }
+
+        th {
+            background-color: #f9f9fb;
+            color: #636366;
+            font-weight: 600;
+            font-size: 12px;
+            letter-spacing: 0.02em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        td input[type="number"] {
+            padding: 7px 10px;
+        }
+
+        /* iOS 红色微型危险按钮 */
+        button.btn-danger {
+            background: rgba(255, 59, 48, 0.12);
+            color: #ff3b30;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        button.btn-danger:hover {
+            background: rgba(255, 59, 48, 0.2);
+        }
+
+        button.btn-danger:active {
+            transform: scale(0.96);
+        }
+
+        /* iOS 胶囊次级操作按钮 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .btn-secondary {
+            background: rgba(120, 120, 128, 0.12);
+            color: #007aff;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 122, 255, 0.15);
+        }
+
+        .btn-secondary:active {
+            transform: scale(0.96);
+        }
+
+        /* iOS 经典高亮蓝全宽操作主按钮 */
+        button.btn-primary {
+            background-color: #007aff;
+            color: #ffffff;
+            border: none;
+            padding: 13px 20px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 4px 14px rgba(0, 122, 255, 0.25);
+            transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        button.btn-primary:hover {
+            background-color: #0066d6;
+        }
+
+        button.btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        /* 结果展示卡片区 */
+        #result {
+            margin-top: 22px;
+            padding: 18px;
+            background: #f9f9fb;
+            border: 1px solid rgba(60, 60, 67, 0.08);
+            border-radius: 16px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .solution-item {
+            background: #ffffff;
+            padding: 11px 16px;
+            margin-bottom: 8px;
+            border-radius: 12px;
+            border-left: 4px solid #007aff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+            font-size: 13px;
+            color: #1c1c1e;
+            line-height: 1.6;
+        }
+
+        .solution-item b {
+            color: #007aff;
+        }
+
+        .result-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 24px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>金额组合计算工具</h2>
+    
+    <!-- 目标金额输入 -->
+    <div class="form-group">
+        <label for="targetInput">目标金额：</label>
+        <input type="number" id="targetInput" value="10000">
+    </div>
+
+    <!-- 面额与次数配置表格 -->
+    <div class="form-group">
+        <label>面额及最大可用次数配置：</label>
+        <div class="tip">💡 提示：如果不想限制次数，可以将“最大可用次数”<strong>留空</strong>，系统会自动按目标金额上限计算。</div>
+        
+        <div class="table-container">
+            <table id="configTable">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">面额</th>
+                        <th style="width: 40%;">最大可用次数 (可留空)</th>
+                        <th style="width: 20%;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- 动态生成 -->
+                </tbody>
+            </table>
+        </div>
+        <div class="btn-group">
+            <button class="btn-secondary" onclick="addRow()">+ 添加一行面额</button>
+        </div>
+    </div>
+
+    <!-- 计算按钮 -->
+    <button class="btn-primary" onclick="runCalculation()">开始计算组合</button>
+
+    <!-- 结果展示区域 -->
+    <div id="result">
+        <p style="color: #8e8e93; text-align: center; margin: 0; font-size: 13px;">点击“开始计算组合”查看结果</p>
+    </div>
+</div>
+
+<script>
+    let initialData = [
+        { denom: 330, max: '' },
+        { denom: 33, max: '' },
+        { denom: 670, max: '' },
+        { denom: 660, max: '' },
+        { denom: 1690, max: '' }
+    ];
+
+    function initTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        initialData.forEach(item => {
+            addRowData(item.denom, item.max);
+        });
+    }
+
+    function addRowData(denom = '', max = '') {
+        const tbody = document.getElementById('tableBody');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input type="number" class="denom-input" value="${denom}" placeholder="例如: 100"></td>
+            <td><input type="number" class="max-input" value="${max}" placeholder="留空自动计算"></td>
+            <td><button class="btn-danger" onclick="deleteRow(this)">删除</button></td>
+        `;
+        tbody.appendChild(row);
+    }
+
+    function addRow() {
+        addRowData('', '');
+    }
+
+    function deleteRow(btn) {
+        const row = btn.closest('tr');
+        row.remove();
+    }
+
+    // 核心计算逻辑 (回溯算法)
+    function runCalculation() {
+        const target = parseInt(document.getElementById('targetInput').value);
+        const rows = document.querySelectorAll('#tableBody tr');
+        
+        let denominations = [];
+        let maxCounts = [];
+
+        rows.forEach(row => {
+            const d = parseInt(row.querySelector('.denom-input').value);
+            const maxStr = row.querySelector('.max-input').value.trim();
+            
+            if (!isNaN(d) && d > 0) {
+                denominations.push(d);
+                let m = (maxStr === '' || isNaN(parseInt(maxStr))) ? Math.floor(target / d) : parseInt(maxStr);
+                maxCounts.push(m);
+            }
+        });
+
+        if (isNaN(target) || denominations.length === 0) {
+            alert('请填写有效的目标金额和至少一个面额！');
+            return;
+        }
+
+        let exactSolutions = [];
+        let closestSolutions = [];
+        let minRemainder = target;
+
+        function backtrack(index, currentSum, currentCombination) {
+            let remainder = target - currentSum;
+
+            if (remainder === 0) {
+                exactSolutions.push([...currentCombination]);
+                return;
+            }
+
+            if (remainder > 0 && remainder < minRemainder) {
+                minRemainder = remainder;
+                closestSolutions = [[...currentCombination]];
+            } else if (remainder === minRemainder && remainder < target) {
+                closestSolutions.push([...currentCombination]);
+            }
+
+            if (index >= denominations.length || currentSum > target) {
+                return;
+            }
+
+            let den = denominations[index];
+            let maxC = maxCounts[index];
+
+            for (let count = 0; count <= maxC; count++) {
+                currentCombination.push(count);
+                backtrack(index + 1, currentSum + den * count, currentCombination);
+                currentCombination.pop();
+            }
+        }
+
+        backtrack(0, 0, []);
+        renderResult(exactSolutions, closestSolutions, minRemainder, denominations);
+    }
+
+    function renderResult(exact, closest, remainder, denominations) {
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = '';
+
+        if (exact.length > 0) {
+            let html = `<div class="result-title" style="color: #34c759;">🎉 刚好凑齐目标金额，共 ${exact.length} 种组合方案：</div>`;
+            const displayList = exact.slice(0, 1000);
+            displayList.forEach((sol, i) => {
+                html += `<div class="solution-item"><strong>方案 ${i + 1}：</strong> ${formatSol(sol, denominations)}</div>`;
+            });
+            if (exact.length > 200) {
+                html += `<p style="color: #8e8e93; text-align: center; font-size: 12px; margin-top: 8px;">... 结果过多，仅展示前 200 种</p>`;
+            }
+            resultDiv.innerHTML = html;
+        } else {
+            let html = `<div class="result-title" style="color: #ff9500;">❌ 未找到刚好相等的方案</div>`;
+            html += `<p style="font-size: 13px; color: #636366; margin-bottom: 10px;"><strong>最接近的方案（差额 ${remainder} 元），共 ${closest.length} 种：</strong></p>`;
+            const displayList = closest.slice(0, 200);
+            displayList.forEach((sol, i) => {
+                html += `<div class="solution-item" style="border-left-color: #ff9500;"><strong>方案 ${i + 1}：</strong> ${formatSol(sol, denominations)}</div>`;
+            });
+            resultDiv.innerHTML = html;
+        }
+    }
+
+    function formatSol(solArray, denominations) {
+        let parts = [];
+        solArray.forEach((count, idx) => {
+            if (count > 0) {
+                parts.push(`面额 <b>${denominations[idx]}</b> × ${count}张`);
+            }
+        });
+        return parts.join(' ＋ ') || '未选择任何面额';
+    }
+
+    window.onload = initTable;
+</script>
+
+</body>
+</html><script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="1eed3390-8ead-4793-986a-4832b35da1db" data-app-host="app.netlify.com"></script>

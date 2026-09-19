@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>多合一工作台</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background-color: #f2f2f7;
+      overflow: hidden;
+    }
+
+    /* 顶部 iOS 风格胶囊导航栏 */
+    #top-nav {
+      height: 48px;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(60, 60, 67, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      background: rgba(120, 120, 128, 0.1);
+      padding: 3px;
+      border-radius: 12px;
+    }
+    .tab-btn {
+      border: none;
+      background: transparent;
+      padding: 5px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #636366;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn.active {
+      background: #ffffff;
+      color: #007aff;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .view-mode-btn {
+      border: none;
+      background: rgba(120, 120, 128, 0.12);
+      color: #007aff;
+      padding: 5px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .view-mode-btn:hover {
+      background: rgba(0, 122, 255, 0.15);
+    }
+
+    /* 主内容区 */
+    #main-stage {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      height: calc(100vh - 48px);
+    }
+
+    .frame-view {
+      border: none;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+    }
+
+    /* 共享记事本独立容器 */
+    #shared-notepad-box {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 分屏左侧容器 */
+    #pane-left {
+      width: 50%;
+      min-width: 280px;
+      height: 100%;
+      display: none;
+      position: relative;
+    }
+
+    /* 拖拽把手 */
+    #divider-resizer {
+      width: 6px;
+      cursor: col-resize;
+      background: transparent;
+      transition: background 0.15s;
+      z-index: 5;
+      display: none;
+    }
+    #divider-resizer:hover, #divider-resizer.dragging {
+      background: #007aff;
+    }
+
+    /* 右侧/其他工具容器 */
+    #other-tools-box {
+      flex: 1;
+      min-width: 280px;
+      height: 100%;
+      position: relative;
+    }
+
+    /* 单页模式下的记事本全屏容器 */
+    #single-notepad-host {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部导航栏 -->
+  <div id="top-nav">
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab(0)">记事本</button>
+      <button class="tab-btn" onclick="switchTab(1)">金额组合</button>
+      <button class="tab-btn" onclick="switchTab(2)">邮箱清洗</button>
+    </div>
+    <button class="view-mode-btn" id="toggle-view-btn" onclick="toggleSplitMode()">切换为左右分屏</button>
+  </div>
+
+  <!-- 主舞台 -->
+  <div id="main-stage">
+    
+    <!-- 单页记事本停泊处 -->
+    <div id="single-notepad-host">
+      <!-- 全站唯一的记事本实体，始终保持同一个实例 -->
+      <div id="shared-notepad-box">
+        <iframe id="main-notepad-frame" class="frame-view" src="1.html"></iframe>
+      </div>
+    </div>
+
+    <!-- 分屏左侧停泊处 -->
+    <div id="pane-left"></div>
+
+    <!-- 拖拽线 -->
+    <div id="divider-resizer"></div>
+
+    <!-- 工具二与工具三容器 -->
+    <div id="other-tools-box" style="display: none;">
+      <iframe id="tool-frame-1" class="frame-view" src="2.html" style="display: block;"></iframe>
+      <iframe id="tool-frame-2" class="frame-view" src="3.html" style="display: none;"></iframe>
+    </div>
+
+  </div>
+
+  <script>
+    let currentIndex = 0;
+    let isSplitMode = false;
+
+    const sharedNotepadBox = document.getElementById('shared-notepad-box');
+    const singleHost = document.getElementById('single-notepad-host');
+    const paneLeft = document.getElementById('pane-left');
+    const divider = document.getElementById('divider-resizer');
+    const otherToolsBox = document.getElementById('other-tools-box');
+    
+    const toolFrame1 = document.getElementById('tool-frame-1');
+    const toolFrame2 = document.getElementById('tool-frame-2');
+    const toggleBtn = document.getElementById('toggle-view-btn');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+
+    // 切换标签页
+    function switchTab(index) {
+      currentIndex = index;
+      tabBtns.forEach((btn, i) => {
+        btn.classList.toggle('active', i === index);
+      });
+
+      if (!isSplitMode) {
+        // 单页模式：如果是0就显示记事本，是1显示工具二，是2显示工具三
+        if (index === 0) {
+          singleHost.style.display = 'block';
+          otherToolsBox.style.display = 'none';
+        } else {
+          singleHost.style.display = 'none';
+          otherToolsBox.style.display = 'block';
+          toolFrame1.style.display = (index === 1) ? 'block' : 'none';
+          toolFrame2.style.display = (index === 2) ? 'block' : 'none';
+        }
+      } else {
+        // 分屏模式：左边永远是记事本，右边随点击在工具二与工具三之间秒切
+        const targetTool = (index === 0) ? 1 : index;
+        toolFrame1.style.display = (targetTool === 1) ? 'block' : 'none';
+        toolFrame2.style.display = (targetTool === 2) ? 'block' : 'none';
+      }
+    }
+
+    // 切换分屏 / 单页模式
+    function toggleSplitMode() {
+      isSplitMode = !isSplitMode;
+
+      if (isSplitMode) {
+        // 进入分屏：把唯一的记事本搬进左侧面板
+        paneLeft.appendChild(sharedNotepadBox);
+        singleHost.style.display = 'none';
+        paneLeft.style.display = 'block';
+        divider.style.display = 'block';
+        otherToolsBox.style.display = 'block';
+
+        toggleBtn.innerText = '切换为单页全屏';
+
+        // 默认右侧展示当前选中或工具二
+        const targetTool = (currentIndex === 0) ? 1 : currentIndex;
+        toolFrame1.style.display = (targetTool === 1) ? 'block' : 'none';
+        toolFrame2.style.display = (targetTool === 2) ? 'block' : 'none';
+      } else {
+        // 退出分屏：把唯一的记事本搬回单页停泊处
+        singleHost.appendChild(sharedNotepadBox);
+        paneLeft.style.display = 'none';
+        divider.style.display = 'none';
+
+        toggleBtn.innerText = '切换为左右分屏';
+
+        // 还原单页视图
+        switchTab(currentIndex);
+      }
+    }
+
+    // 左右分屏拖拽把手逻辑
+    let isDragging = false;
+    divider.addEventListener('mousedown', function(e) {
+      isDragging = true;
+      divider.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.querySelectorAll('iframe').forEach(f => f.style.pointerEvents = 'none');
+    });
+
+    window.addEventListener('mousemove', function(e) {
+      if (!isDragging) return;
+      const stageRect = document.getElementById('main-stage').getBoundingClientRect();
+      let leftWidth = e.clientX - stageRect.left;
+      if (leftWidth < 280) leftWidth = 280;
+      if (leftWidth > stageRect.width - 280) leftWidth = stageRect.width - 280;
+      paneLeft.style.width = leftWidth + 'px';
+    });
+
+    window.addEventListener('mouseup', function() {
+      if (isDragging) {
+        isDragging = false;
+        divider.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.querySelectorAll('iframe').forEach(f => f.style.pointerEvents = 'auto');
+      }
+    });
+  </script>
+</body>
+</html>

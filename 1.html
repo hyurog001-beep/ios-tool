@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free: https://netlify.new/?utm_campaign=ai-legible&utm_source=comment&utm_medium=referral&utm_id=a573614a-d477-440a-8e13-b66e031c4ab7
+     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+<meta name="hosting-provider" content="Netlify">
+<meta name="netlify-deploy" content="https://netlify.new/?utm_campaign=ai-legible&amp;utm_source=meta&amp;utm_medium=referral&amp;utm_id=a573614a-d477-440a-8e13-b66e031c4ab7">
+  <title>网页记事本</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      display: flex;
+      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+      color: #1c1c1e;
+      background-color: #f2f2f7;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    /* 左侧侧边栏：宽度支持动态拖拽 */
+    #sidebar {
+      width: 280px;
+      min-width: 180px;
+      max-width: 500px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border-right: 1px solid rgba(60, 60, 67, 0.12);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+    .sidebar-header h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #8e8e93;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .btn-group {
+      display: flex;
+      gap: 6px;
+    }
+    .action-btn {
+      background: rgba(120, 120, 128, 0.12);
+      border: none;
+      border-radius: 14px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      color: #007aff;
+      transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    .action-btn:hover {
+      background: rgba(0, 122, 255, 0.15);
+    }
+    .action-btn:active {
+      transform: scale(0.96);
+    }
+
+    #outline-list {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .outline-empty {
+      font-size: 13px;
+      color: #aeaeb2;
+      padding: 12px 8px;
+    }
+    .outline-item {
+      cursor: pointer;
+      padding: 7px 12px;
+      border-radius: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 3px;
+      transition: all 0.2s ease;
+      font-size: 14px;
+      color: #3a3a3c;
+    }
+    .outline-item:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .outline-item.h1-item {
+      font-weight: 600;
+      font-size: 16px;
+      color: #1c1c1e;
+    }
+    .outline-item.h2-item {
+      padding-left: 24px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #007aff;
+    }
+    .outline-item.h3-item {
+      padding-left: 36px;
+      font-size: 12px;
+      color: #636366;
+    }
+    .outline-item.active-heading {
+      background: rgba(0, 122, 255, 0.14);
+      color: #007aff;
+      font-weight: 600;
+    }
+
+    /* 左右自由调节大纲宽度的拖拽把手条 */
+    #sidebar-resizer {
+      position: absolute;
+      top: 0;
+      right: -3px;
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 100;
+      transition: background 0.15s ease;
+    }
+    #sidebar-resizer:hover, #sidebar-resizer.resizing {
+      background: #007aff;
+    }
+
+    /* 右侧主视窗 */
+    #editor-container {
+      flex: 1;
+      padding: 28px 48px 48px;
+      overflow-y: auto;
+      position: relative;
+      height: 100vh;
+      scroll-behavior: smooth;
+    }
+    #top-bar {
+      width: 100%;
+      max-width: 860px;
+      margin: 0 auto 14px auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px;
+    }
+    #tips {
+      font-size: 12px;
+      color: #8e8e93;
+      line-height: 1.5;
+    }
+    #tips b {
+      color: #636366;
+      font-weight: 600;
+    }
+    #save-status {
+      font-size: 12px;
+      color: #34c759;
+      font-weight: 500;
+      transition: opacity 0.3s ease;
+      white-space: nowrap;
+      margin-left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #editor {
+      width: 100%;
+      max-width: 860px;
+      min-height: calc(100vh - 130px);
+      height: auto;
+      margin: 0 auto 60px auto;
+      background: #ffffff;
+      padding: 36px 44px;
+      border-radius: 18px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+      outline: none;
+      line-height: 1.8;
+      font-size: 15px;
+      white-space: pre-wrap;
+      color: #1c1c1e;
+    }
+    #editor:focus {
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+    
+    .editor-line {
+      min-height: 1.8em;
+      word-break: break-all;
+    }
+
+    .editor-line.title-h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1c1c1e;
+      margin-top: 22px;
+      margin-bottom: 6px;
+      letter-spacing: -0.015em;
+    }
+    .editor-line.title-h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #007aff;
+      margin-top: 16px;
+      margin-bottom: 4px;
+      letter-spacing: -0.01em;
+    }
+    .editor-line.title-h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #636366;
+      margin-top: 12px;
+      margin-bottom: 2px;
+    }
+
+    .time-tracker {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(0, 122, 255, 0.25);
+      color: #007aff;
+      border-radius: 14px;
+      padding: 2px 10px;
+      font-size: 12px;
+      margin: 0 4px;
+      vertical-align: baseline;
+      user-select: none;
+      box-shadow: 0 2px 8px rgba(0, 122, 255, 0.08);
+    }
+    .time-tracker .start-time {
+      color: #5856d6;
+      font-weight: 500;
+    }
+    .time-tracker .elapsed-display {
+      font-weight: 600;
+      color: #007aff;
+      margin-left: 6px;
+      font-feature-settings: "tnum";
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 左侧毛玻璃侧栏 -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <h3>大纲目录</h3>
+      <div class="btn-group">
+        <button class="action-btn" onclick="exportDocument('txt')">TXT</button>
+        <button class="action-btn" onclick="exportDocument('html')">HTML</button>
+      </div>
+    </div>
+    <div id="outline-list"></div>
+    <!-- 拖拽调整大小的把手 -->
+    <div id="sidebar-resizer"></div>
+  </div>
+
+  <!-- 主编辑卡片区 -->
+  <div id="editor-container">
+    <div id="top-bar">
+      <div id="tips">
+        快捷键：<b>F1-F3</b> 标题 | <b>F4 / =</b> 计算 | <b>F5</b> 计时 | <b>Tab</b> 缩进 | <b>Ctrl+S</b> 保存
+      </div>
+      <div id="save-status">● 已自动保存</div>
+    </div>
+    <div id="editor" contenteditable="true"></div>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const resizer = document.getElementById('sidebar-resizer');
+    const editor = document.getElementById('editor');
+    const editorContainer = document.getElementById('editor-container');
+    const outlineList = document.getElementById('outline-list');
+    const saveStatus = document.getElementById('save-status');
+
+    const STORAGE_KEY = 'minimal_notepad_content_v1';
+    const SIDEBAR_WIDTH_KEY = 'minimal_notepad_sidebar_width';
+    let saveTimeout = null;
+
+    // 格式化时间
+    function formatDateTime(d) {
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    // 保存内容
+    function saveToStorage(isManual = false) {
+      try {
+        localStorage.setItem(STORAGE_KEY, editor.innerHTML);
+        saveStatus.style.opacity = '1';
+        saveStatus.innerText = isManual ? '✓ 已手动保存' : '● 已自动保存';
+        saveStatus.style.color = '#34c759';
+
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          saveStatus.style.opacity = '0.4';
+        }, 2000);
+      } catch (e) {
+        saveStatus.innerText = '✕ 保存失败';
+        saveStatus.style.color = '#ff3b30';
+      }
+    }
+
+    // 载入存储
+    function loadFromStorage() {
+      // 还原大纲宽度记忆
+      const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+      if (savedWidth) {
+        sidebar.style.width = savedWidth + 'px';
+      }
+
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved && saved.trim() !== '') {
+          editor.innerHTML = saved;
+        } else {
+          editor.innerHTML = '<div class="editor-line">欢迎使用网页记事本</div>';
+        }
+      } catch (e) {
+        editor.innerHTML = '<div class="editor-line">欢迎使用网页记事本</div>';
+      }
+      updateOutline();
+      updateAllElapsedTimes();
+    }
+
+    // 导出文件
+    function exportDocument(format) {
+      let content = '';
+      let mimeType = 'text/plain';
+      let extension = 'txt';
+
+      if (format === 'html') {
+        mimeType = 'text/html';
+        extension = 'html';
+        content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>记事本导出</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:40px;line-height:1.8;background:#f2f2f7;color:#1c1c1e}.title-h1{font-size:26px;font-weight:700;color:#1c1c1e;margin:20px 0 6px}.title-h2{font-size:20px;font-weight:600;color:#007aff;margin:16px 0 4px}.title-h3{font-size:16px;font-weight:600;color:#636366;margin:12px 0 2px}.time-tracker{background:rgba(255,255,255,0.85);border:1px solid rgba(0,122,255,0.25);color:#007aff;padding:2px 10px;border-radius:14px;font-size:12px}</style></head><body><div style="background:#fff;padding:36px;border-radius:18px;max-width:800px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.05);">${editor.innerHTML}</div></body></html>`;
+      } else {
+        const lines = editor.querySelectorAll('.editor-line');
+        const textArr = [];
+        lines.forEach(line => {
+          let lineText = line.innerText.replace(/\r?\n/g, '');
+          if (line.classList.contains('title-h1')) {
+            lineText = `=========${lineText}=========`;
+          }
+          textArr.push(lineText);
+        });
+        content = textArr.join('\r\n');
+      }
+
+      const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+      a.href = url;
+      a.download = `记事本_${dateStr}.${extension}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function getCurrentLineElement() {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) return null;
+
+      let node = selection.anchorNode;
+      while (node && node.parentElement !== editor) {
+        node = node.parentElement;
+      }
+      if (node && node !== editor) return node;
+      return null;
+    }
+
+    function createLine(text = '') {
+      const line = document.createElement('div');
+      line.className = 'editor-line';
+      if (text) {
+        line.textContent = text;
+      } else {
+        line.innerHTML = '<br>';
+      }
+      return line;
+    }
+
+    function formatNumberWithCommas(num) {
+      const parts = num.toString().split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return parts.join('.');
+    }
+
+    function safeCalculate(expression) {
+      const clean = expression
+        .replace(/×/g, '*')
+        .replace(/÷/g, '/')
+        .replace(/＋/g, '+')
+        .replace(/－/g, '-')
+        .replace(/＝/g, '')
+        .replace(/=/g, '')
+        .replace(/,/g, '')
+        .trim();
+
+      if (!clean || !/[+\-*/]/.test(clean)) return null;
+      if (!/^[0-9+\-*/().\s]+$/.test(clean)) return null;
+
+      try {
+        const result = Function('"use strict"; return (' + clean + ')')();
+        if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) return null;
+        const rounded = Math.round(result * 100000) / 100000;
+        return formatNumberWithCommas(rounded);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // 计算逻辑：使用优雅清晰的 [ 结果 ] 方括号包裹
+    function handleF4Calculation() {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) return false;
+      const range = selection.getRangeAt(0);
+
+      // 1. 选中文本直接算
+      const selectedText = selection.toString().trim();
+      if (selectedText) {
+        let cleanExpr = selectedText.replace(/=$/, '').trim();
+        const res = safeCalculate(cleanExpr);
+        if (res !== null) {
+          const resultText = `${cleanExpr} = [ ${res} ] `;
+          range.deleteContents();
+          const node = document.createTextNode(resultText);
+          range.insertNode(node);
+          range.setStartAfter(node);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          updateOutline();
+          saveToStorage();
+          return true;
+        }
+        return false;
+      }
+
+      // 2. 光标前算式计算
+      const node = range.startContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textBeforeCursor = node.textContent.slice(0, range.startOffset);
+        const match = textBeforeCursor.match(/([0-9+\-*/().\s×÷＋－,]+)[=＝]?$/);
+
+        if (match && match[1].trim() !== '') {
+          const expr = match[1].trim();
+          const result = safeCalculate(expr);
+
+          if (result !== null) {
+            const matchIndex = match.index;
+            const beforeMatchText = textBeforeCursor.substring(0, matchIndex);
+            const textAfterCursor = node.textContent.slice(range.startOffset);
+
+            const insertedText = `${expr} = [ ${result} ] `;
+            node.textContent = beforeMatchText + insertedText + textAfterCursor;
+
+            const newRange = document.createRange();
+            const newPos = beforeMatchText.length + insertedText.length;
+            newRange.setStart(node, newPos);
+            newRange.collapse(true);
+
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+
+            updateOutline();
+            saveToStorage();
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // 更新大纲并保持滚动位置
+    function updateOutline() {
+      const prevScrollTop = outlineList.scrollTop;
+      outlineList.innerHTML = '';
+      const headings = editor.querySelectorAll('.editor-line.title-h1, .editor-line.title-h2, .editor-line.title-h3');
+
+      if (headings.length === 0) {
+        outlineList.innerHTML = '<div class="outline-empty">暂无大纲标题</div>';
+        return;
+      }
+
+      headings.forEach((line, index) => {
+        if (!line.id) {
+          line.id = 'heading-' + Date.now() + '-' + index;
+        }
+
+        let cleanText = '';
+        line.childNodes.forEach(child => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            cleanText += child.textContent;
+          } else if (!child.classList || !child.classList.contains('time-tracker')) {
+            cleanText += child.innerText;
+          }
+        });
+        cleanText = cleanText.replace(/\r?\n/g, '').trim();
+
+        const item = document.createElement('div');
+        let levelClass = 'h1-item';
+        let defaultLabel = '（未命名主标题）';
+
+        if (line.classList.contains('title-h2')) {
+          levelClass = 'h2-item';
+          defaultLabel = '（未命名副标题）';
+        } else if (line.classList.contains('title-h3')) {
+          levelClass = 'h3-item';
+          defaultLabel = '（未命名小标题）';
+        }
+
+        item.className = 'outline-item ' + levelClass;
+        item.innerText = cleanText || defaultLabel;
+        item.setAttribute('data-target-id', line.id);
+
+        item.onclick = function() {
+          line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+
+        outlineList.appendChild(item);
+      });
+
+      outlineList.scrollTop = prevScrollTop;
+      highlightCurrentHeading();
+    }
+
+    // Scrollspy: 右侧滚动时高亮大纲当前位置
+    function highlightCurrentHeading() {
+      const headings = editor.querySelectorAll('.editor-line.title-h1, .editor-line.title-h2, .editor-line.title-h3');
+      const outlineItems = outlineList.querySelectorAll('.outline-item');
+      if (!headings.length || !outlineItems.length) return;
+
+      const containerTop = editorContainer.scrollTop;
+      let currentActiveId = null;
+
+      headings.forEach(heading => {
+        if (heading.offsetTop - 140 <= containerTop) {
+          currentActiveId = heading.id;
+        }
+      });
+
+      if (!currentActiveId && headings.length > 0) {
+        currentActiveId = headings[0].id;
+      }
+
+      outlineItems.forEach(item => {
+        if (item.getAttribute('data-target-id') === currentActiveId) {
+          item.classList.add('active-heading');
+        } else {
+          item.classList.remove('active-heading');
+        }
+      });
+    }
+
+    editorContainer.addEventListener('scroll', highlightCurrentHeading);
+
+    function updateAllElapsedTimes() {
+      const now = Date.now();
+      const trackers = editor.querySelectorAll('.time-tracker');
+
+      trackers.forEach(tracker => {
+        const timestamp = parseInt(tracker.getAttribute('data-timestamp'), 10);
+        const display = tracker.querySelector('.elapsed-display');
+        if (!timestamp || !display) return;
+
+        const diff = Math.max(0, now - timestamp);
+        const totalSeconds = Math.floor(diff / 1000);
+
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        const pad = (n) => String(n).padStart(2, '0');
+        let text = '已进行 ';
+        if (days > 0) text += `${days}天 `;
+        text += `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+
+        display.innerText = text;
+      });
+    }
+
+    setInterval(updateAllElapsedTimes, 1000);
+
+    function insertTimeTracker() {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) return;
+      const range = selection.getRangeAt(0);
+
+      const now = new Date();
+      const tracker = document.createElement('span');
+      tracker.className = 'time-tracker';
+      tracker.contentEditable = 'false';
+      tracker.setAttribute('data-timestamp', now.getTime());
+
+      tracker.innerHTML = `⏱️ <span class="start-time">${formatDateTime(now)}</span> <span class="elapsed-display">已进行 00:00:00</span>`;
+
+      range.deleteContents();
+      range.insertNode(tracker);
+
+      const space = document.createTextNode(' ');
+      tracker.parentNode.insertBefore(space, tracker.nextSibling);
+
+      const newRange = document.createRange();
+      newRange.setStartAfter(space);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+
+      updateAllElapsedTimes();
+      saveToStorage();
+    }
+
+    editor.addEventListener('paste', function(e) {
+      e.preventDefault();
+      const rawText = (e.clipboardData || window.clipboardData).getData('text/plain');
+      if (!rawText) return;
+
+      const lines = rawText.split(/\r?\n/);
+      let currentLine = getCurrentLineElement();
+
+      if (!currentLine) {
+        currentLine = createLine();
+        editor.appendChild(currentLine);
+      }
+
+      const selection = window.getSelection();
+      const range = selection.getRangeAt(0);
+
+      if (lines.length === 1) {
+        const textNode = document.createTextNode(lines[0]);
+        range.deleteContents();
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else {
+        range.deleteContents();
+        const firstLineNode = document.createTextNode(lines[0]);
+        range.insertNode(firstLineNode);
+
+        const splitRange = document.createRange();
+        splitRange.setStartAfter(firstLineNode);
+        splitRange.setEndAfter(currentLine.lastChild || firstLineNode);
+        const tailContent = splitRange.extractContents();
+
+        let insertAnchor = currentLine;
+        for (let i = 1; i < lines.length; i++) {
+          const newLine = createLine(lines[i]);
+          if (i === lines.length - 1 && tailContent.childNodes.length > 0) {
+            newLine.appendChild(tailContent);
+          }
+          editor.insertBefore(newLine, insertAnchor.nextSibling);
+          insertAnchor = newLine;
+        }
+
+        const newRange = document.createRange();
+        newRange.setStart(insertAnchor, 0);
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+      }
+
+      updateOutline();
+      saveToStorage();
+    });
+
+    // 键盘操作监听
+    editor.addEventListener('keydown', function(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+        const range = selection.getRangeAt(0);
+        
+        const tabNode = document.createTextNode('    ');
+        range.deleteContents();
+        range.insertNode(tabNode);
+
+        range.setStartAfter(tabNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        saveToStorage();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveToStorage(true);
+        return;
+      }
+
+      if (e.key === 'F4') {
+        e.preventDefault();
+        handleF4Calculation();
+        return;
+      }
+
+      if (e.key === '=' || e.key === '＝') {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          const ok = handleF4Calculation();
+          if (ok) {
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const currentLine = getCurrentLineElement();
+        if (!currentLine) return;
+
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+        const range = selection.getRangeAt(0);
+
+        const checkRange = document.createRange();
+        checkRange.selectNodeContents(currentLine);
+        checkRange.setEnd(range.startContainer, range.startOffset);
+        const isAtLineStart = checkRange.toString().length === 0;
+
+        if (isAtLineStart) {
+          const emptyLine = createLine('');
+          editor.insertBefore(emptyLine, currentLine);
+
+          const newRange = document.createRange();
+          newRange.setStart(currentLine, 0);
+          newRange.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+        } else {
+          const splitRange = document.createRange();
+          splitRange.setStart(range.startContainer, range.startOffset);
+          splitRange.setEnd(currentLine, currentLine.childNodes.length);
+
+          const extractedFragment = splitRange.extractContents();
+
+          const newLine = document.createElement('div');
+          newLine.className = 'editor-line';
+
+          if (!extractedFragment.childNodes.length || (extractedFragment.textContent === '' && !extractedFragment.querySelector('.time-tracker'))) {
+            newLine.innerHTML = '<br>';
+          } else {
+            newLine.appendChild(extractedFragment);
+          }
+
+          if (!currentLine.childNodes.length || currentLine.innerHTML.trim() === '') {
+            currentLine.innerHTML = '<br>';
+          }
+
+          if (currentLine.nextSibling) {
+            editor.insertBefore(newLine, currentLine.nextSibling);
+          } else {
+            editor.appendChild(newLine);
+          }
+
+          const newRange = document.createRange();
+          newRange.setStart(newLine, 0);
+          newRange.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+        }
+
+        updateOutline();
+        saveToStorage();
+        return;
+      }
+
+      if (e.key === 'F1' || e.key === 'F2' || e.key === 'F3') {
+        e.preventDefault();
+        const line = getCurrentLineElement();
+        if (!line) return;
+
+        if (e.key === 'F1') {
+          line.classList.remove('title-h2', 'title-h3');
+          line.classList.toggle('title-h1');
+        } else if (e.key === 'F2') {
+          line.classList.remove('title-h1', 'title-h3');
+          line.classList.toggle('title-h2');
+        } else if (e.key === 'F3') {
+          line.classList.remove('title-h1', 'title-h2');
+          line.classList.toggle('title-h3');
+        }
+
+        updateOutline();
+        saveToStorage();
+        return;
+      }
+
+      if (e.key === 'F5') {
+        e.preventDefault();
+        insertTimeTracker();
+        return;
+      }
+    });
+
+    let inputDebounce = null;
+    editor.addEventListener('input', function() {
+      saveStatus.innerText = '● 正在保存...';
+      saveStatus.style.opacity = '1';
+      clearTimeout(inputDebounce);
+      inputDebounce = setTimeout(() => {
+        updateOutline();
+        saveToStorage(false);
+      }, 300);
+    });
+
+    // 侧栏左右自由拖拽核心逻辑
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', function(e) {
+      isResizing = true;
+      resizer.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none'; // 拖拽时避免误选文本
+    });
+
+    window.addEventListener('mousemove', function(e) {
+      if (!isResizing) return;
+      let newWidth = e.clientX;
+      if (newWidth < 180) newWidth = 180; // 最小宽度
+      if (newWidth > 500) newWidth = 500; // 最大宽度
+      sidebar.style.width = newWidth + 'px';
+    });
+
+    window.addEventListener('mouseup', function() {
+      if (isResizing) {
+        isResizing = false;
+        resizer.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, parseInt(sidebar.style.width, 10));
+      }
+    });
+
+    loadFromStorage();
+  </script>
+</body>
+</html><script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="a573614a-d477-440a-8e13-b66e031c4ab7" data-app-host="app.netlify.com"></script>
+<script async src="/.netlify/scripts/hud?variant=public" data-nf-variant="public" data-netlify-site-id="1eed3390-8ead-4793-986a-4832b35da1db" data-app-host="app.netlify.com"></script>
