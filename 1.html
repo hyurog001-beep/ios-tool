@@ -381,16 +381,20 @@
     }
 
     function getCurrentLineElement() {
-      const selection = window.getSelection();
-      if (!selection.rangeCount) return null;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
 
-      let node = selection.anchorNode;
-      while (node && node.parentElement !== editor) {
-        node = node.parentElement;
-      }
-      if (node && node !== editor) return node;
-      return null;
-    }
+  let node = selection.anchorNode;
+  if (!node) return null;
+
+  // 如果选中的是文本节点 (nodeType === 3)，取其父级元素
+  if (node.nodeType === Node.TEXT_NODE) {
+    node = node.parentElement;
+  }
+
+  // 确保返回的是真正的 Element
+  return node instanceof HTMLElement ? node : null;
+}
 
     function createLine(text = '') {
       const line = document.createElement('div');
@@ -799,18 +803,18 @@
         if (!line) return;
 
         if (e.key === 'F1') {
-          line.classList.remove('title-h2', 'title-h3');
-          line.classList.toggle('title-h1');
+          line.classList?.remove('title-h2', 'title-h3');
+          line.classList?.toggle('title-h1');
         } else if (e.key === 'F2') {
-          line.classList.remove('title-h1', 'title-h3');
-          line.classList.toggle('title-h2');
+          line.classList?.remove('title-h1', 'title-h3');
+          line.classList?.toggle('title-h2');
         } else if (e.key === 'F3') {
-          line.classList.remove('title-h1', 'title-h2');
-          line.classList.toggle('title-h3');
+          line.classList?.remove('title-h1', 'title-h2');
+          line.classList?.toggle('title-h3');
         }
 
-        updateOutline();
-        saveToStorage();
+        updateOutline?.();
+        saveToStorage?.();
         return;
       }
 
